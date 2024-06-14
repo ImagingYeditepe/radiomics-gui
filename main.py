@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import filedialog as fd
+from tkinter import filedialog as fd, messagebox
 import pandas as pd
 import numpy as np
 import os
@@ -11,6 +11,7 @@ def main():
     root.title("Patient Data Management")
 
     def open_existing_file():
+        global fname
         fname = fd.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
         if fname:
             dataf = pd.read_excel(fname)
@@ -18,7 +19,7 @@ def main():
             display_table(dataf, fname)
 
     def new_project():
-        dataf = pd.DataFrame(columns=['patient_id', 'age', 'tumor_status', 'file_path'])
+        dataf = pd.DataFrame(columns=['patient_id', 'age', 'tumor_status', 'file_name'])
         root.destroy()
         display_table(dataf, None)
 
@@ -29,19 +30,21 @@ def main():
     new_button.pack(pady=20)
 
     root.mainloop()
-    
-    
 
-def open_file(file_path):
+def open_file(file_name):
+    current_directory = os.path.dirname(fname)
+    file_path = os.path.join(current_directory, file_name + '.tsv')  
+
+    print(f"Trying to open file at path: {file_path}")  
+
     if os.path.exists(file_path):
+        print("File exists, opening...")  
         with open(file_path, "r") as file:
             reader = csv.reader(file, delimiter="\t")
             content = list(reader)
         show_table_window(content)
     else:
-        print("File not found")
-        
-        
+        messagebox.showerror("File Not Found", f"File {file_name} not found in the current directory.")
 
 def show_table_window(content):
     table_window = tk.Toplevel()
@@ -58,8 +61,6 @@ def show_table_window(content):
         tree.insert("", index, text=index, values=row)
 
     tree.pack(expand=True, fill="both")
-    
-    
 
 def display_table(dataf, fname):
     root = tk.Tk()
@@ -69,7 +70,7 @@ def display_table(dataf, fname):
     frame.pack(fill=tk.BOTH, expand=True)
 
     tree = ttk.Treeview(frame)
-    tree["columns"] = ("ID", "Age", "Tumor Status", "File Path", "Open File")
+    tree["columns"] = ("ID", "Age", "Tumor Status", "File Name", "Open File")
     tree.heading("#0", text="")
     tree.column("#0", anchor="center", width=0)
     tree.heading("ID", text="Patient ID")
@@ -78,18 +79,18 @@ def display_table(dataf, fname):
     tree.column("Age", anchor="center", width=100)
     tree.heading("Tumor Status", text="Tumor Status")
     tree.column("Tumor Status", anchor="center", width=100)
-    tree.heading("File Path", text="File Path")
-    tree.column("File Path", anchor="center", width=200)
+    tree.heading("File Name", text="File Name")
+    tree.column("File Name", anchor="center", width=200)
     tree.heading("Open File", text="Open File")
     tree.column("Open File", anchor="center", width=100)
 
     for i in range(len(dataf)):
-        tree.insert("", i, text="", values=(dataf.loc[i]['patient_id'], dataf.loc[i]['age'], dataf.loc[i]['tumor_status'], dataf.loc[i]['file_path'], ""))
+        tree.insert("", i, text="", values=(dataf.loc[i]['patient_id'], dataf.loc[i]['age'], dataf.loc[i]['tumor_status'], dataf.loc[i]['file_name'], ""))
 
     def on_click(event):
         item = tree.selection()[0]
-        file_path = tree.item(item, "values")[3]
-        open_file(file_path)
+        file_name = tree.item(item, "values")[3]
+        open_file(file_name)
 
     tree.bind("<Double-1>", on_click)
 
@@ -118,9 +119,6 @@ def display_table(dataf, fname):
 
     root.mainloop()
 
-
-
-
 def edit_patient(tree, dataf):
     selected_item = tree.selection()
     if selected_item:
@@ -134,7 +132,7 @@ def edit_patient(tree, dataf):
         tk.Label(edit_window, text="Patient ID:", fg="red").grid(row=0, column=0)
         tk.Label(edit_window, text="Age:", fg="red").grid(row=1, column=0)
         tk.Label(edit_window, text="Tumor/Benign:", fg="red").grid(row=2, column=0)
-        tk.Label(edit_window, text="File Path:", fg="red").grid(row=3, column=0)
+        tk.Label(edit_window, text="File Name:", fg="red").grid(row=3, column=0)
 
         patient_id_entry = tk.Entry(edit_window)
         age_entry = tk.Entry(edit_window)
@@ -142,41 +140,31 @@ def edit_patient(tree, dataf):
         tumor_status_combobox.grid(row=2, column=1)
         tumor_status_combobox.set(selected_patient['tumor_status'])
 
-        file_path_entry = tk.Entry(edit_window)
+        file_name_entry = tk.Entry(edit_window)
         patient_id_entry.grid(row=0, column=1)
         age_entry.grid(row=1, column=1)
-        file_path_entry.grid(row=3, column=1)
+        file_name_entry.grid(row=3, column=1)
 
         patient_id_entry.insert(0, selected_patient['patient_id'])
         age_entry.insert(0, selected_patient['age'])
-        file_path_entry.insert(0, selected_patient['file_path'])
-
-        def choose_file():
-            file_path = fd.askopenfilename()
-            file_path_entry.delete(0, tk.END)
-            file_path_entry.insert(0, file_path)
-
-        file_button = tk.Button(edit_window, text="Choose File", command=choose_file)
-        file_button.grid(row=3, column=2)
+        file_name_entry.insert(0, selected_patient['file_name'])
 
         def update_patient():
             patient_id = patient_id_entry.get()
             age = age_entry.get()
             tumor_status = tumor_status_combobox.get()
-            file_path = file_path_entry.get()
+            file_name = file_name_entry.get()
 
             dataf.at[index, 'patient_id'] = patient_id
             dataf.at[index, 'age'] = age
             dataf.at[index, 'tumor_status'] = tumor_status
-            dataf.at[index, 'file_path'] = file_path
+            dataf.at[index, 'file_name'] = file_name
 
             edit_window.destroy()
-            tree.item(item, values=(patient_id, age, tumor_status, file_path, ""))
+            tree.item(item, values=(patient_id, age, tumor_status, file_name, ""))
 
         edit_button = tk.Button(edit_window, text="Update Patient", command=update_patient)
         edit_button.grid(row=4, columnspan=2)
-        
-        
 
 def save_changes(dataf, fname):
     if fname:
@@ -187,21 +175,21 @@ def save_changes(dataf, fname):
         if fname:
             dataf.to_excel(fname, index=False)
             print("File saved successfully!")
-            
-            
 
 def export_to_excel(dataf, filename_prefix='output'):
     tsdf = dataf['tumor_status']
     tsdf.to_excel(filename_prefix + '_labels.xlsx', index=False)
 
-    file_path = dataf.loc[0]['file_path']
+    file_name = dataf.loc[0]['file_name']
+    file_path = os.path.join(os.getcwd(), file_name + '.tsv')
     raddf = pd.read_csv(file_path, sep='\t')
     raddf = raddf[raddf['Image type'] != 'diagnostics']
     featdf = raddf.iloc[:, 0:3]
     featdf.to_excel(filename_prefix + '_featurenames.xlsx', index=False)
 
     all_data = []
-    for file_path in dataf['file_path']:
+    for file_name in dataf['file_name']:
+        file_path = os.path.join(os.getcwd(), file_name + '.tsv')
         raddf = pd.read_csv(file_path, sep='\t')
         raddf = raddf[raddf['Image type'] != 'diagnostics']
         featdf = raddf.iloc[:, 3]
@@ -211,9 +199,6 @@ def export_to_excel(dataf, filename_prefix='output'):
     export_df = pd.DataFrame(npdata)
     export_filename = filename_prefix + '_features.xlsx'
     export_df.to_excel(export_filename, index=False)
-    
-    
-    
 
 def add_patient_window(tree, dataf):
     add_window = tk.Toplevel()
@@ -222,7 +207,7 @@ def add_patient_window(tree, dataf):
     tk.Label(add_window, text="Patient ID:", fg="red").grid(row=0, column=0)
     tk.Label(add_window, text="Age:", fg="red").grid(row=1, column=0)
     tk.Label(add_window, text="Tumor/Benign:", fg="red").grid(row=2, column=0)
-    tk.Label(add_window, text="File Path:", fg="red").grid(row=3, column=0)
+    tk.Label(add_window, text="File Name:", fg="red").grid(row=3, column=0)
 
     patient_id_entry = tk.Entry(add_window)
     age_entry = tk.Entry(add_window)
@@ -230,10 +215,10 @@ def add_patient_window(tree, dataf):
     tumor_status_combobox.grid(row=2, column=1)
     tumor_status_combobox.set("Tumor")
 
-    file_path_entry = tk.Entry(add_window)
+    file_name_entry = tk.Entry(add_window)
     patient_id_entry.grid(row=0, column=1)
     age_entry.grid(row=1, column=1)
-    file_path_entry.grid(row=3, column=1)
+    file_name_entry.grid(row=3, column=1)
 
     def choose_file():
         file_path = fd.askopenfilename()
@@ -250,8 +235,8 @@ def add_patient_window(tree, dataf):
 
                 num_rows, num_cols = df.shape
                 if num_rows == 888 and num_cols == 4:
-                    file_path_entry.delete(0, tk.END)
-                    file_path_entry.insert(0, file_path)
+                    file_name_entry.delete(0, tk.END)
+                    file_name_entry.insert(0, os.path.basename(file_path).split('.')[0])  
                 else:
                     tk.messagebox.showerror("File Error", f"Selected file should have 888 rows and 4 columns. Please choose a valid file.")
             except Exception as e:
@@ -259,27 +244,22 @@ def add_patient_window(tree, dataf):
 
     file_button = tk.Button(add_window, text="Choose File", command=choose_file)
     file_button.grid(row=3, column=2)
-    
-    
-    
 
     def add_patient():
         patient_id = patient_id_entry.get()
         age = age_entry.get()
         tumor_status = tumor_status_combobox.get()
-        file_path = file_path_entry.get()
+        file_name = file_name_entry.get()
 
-        dataf.loc[len(dataf)] = [patient_id, age, tumor_status, file_path]
+        dataf.loc[len(dataf)] = [patient_id, age, tumor_status, file_name]
         add_window.destroy()
 
         tree.delete(*tree.get_children())
         for i in range(len(dataf)):
-            tree.insert("", i, text="", values=(dataf.loc[i]['patient_id'], dataf.loc[i]['age'], dataf.loc[i]['tumor_status'], dataf.loc[i]['file_path'], ""))
+            tree.insert("", i, text="", values=(dataf.loc[i]['patient_id'], dataf.loc[i]['age'], dataf.loc[i]['tumor_status'], dataf.loc[i]['file_name'], ""))
 
     add_button = tk.Button(add_window, text="Add Patient", command=add_patient)
     add_button.grid(row=4, columnspan=2)
-    
-    
 
 def delete_patient(tree, dataf):
     selected_item = tree.selection()
@@ -289,14 +269,10 @@ def delete_patient(tree, dataf):
             dataf.drop(index, inplace=True)
         tree.delete(selected_item)
 
-
-
 def start_new_project(dataf, root):
     save_changes(dataf, None)
     root.destroy()
     main()
-    
-    
 
 if __name__ == "__main__":
     main()
